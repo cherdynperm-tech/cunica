@@ -16,11 +16,13 @@ alwaysApply: true
 ## Where in README
 
 Keep a **«Совместимость с Unica»** section near the top of `README.md` (after the project summary, before installation instructions).
+Keep a **«Ключевые слова для поиска»** section near the top of `README.md` and do not remove it in later edits.
 
 The section must include:
 
 - tested Unica version as a link to the GitHub release tag (e.g. `0.6.1` → `v0.6.1`)
 - reference to `unica-contract.json` → `developmentVersion` as the source of truth for the target layout
+- search keywords in exact forms: `1с`, `1c`, `bsl`, `cursor`, `unica`
 
 ## When to update
 

@@ -6,14 +6,19 @@
 
 **Cunica** адаптирует обвязку Unica для [Cursor](https://cursor.com): скачивает release-пакет Unica локально, подключает MCP-сервер `unica` и skills в Cursor. Файлы Unica **не хранятся** в этом репозитории — только скрипты установки.
 
+## Ключевые слова для поиска
+
+`1с`, `1c`, `bsl`, `cursor`, `unica`
+
+Проект предназначен для сценариев разработки 1С/1c на BSL в Cursor с использованием Unica.
+
 ## Совместимость с Unica
 
 | | |
 |---|---|
 | Версия разработки и тестов | **[0.6.1](https://github.com/IngvarConsulting/unica/releases/tag/v0.6.1)** (`v0.6.1`) |
-| Контракт cunica | `unica-contract.json` → `developmentVersion` |
 
-Cunica разработан и проверен для этой версии Unica. При выходе нового релиза Unica обновите контракт, выполните проверки и обновите номер версии в этом разделе.
+Cunica разработан и проверен для этой версии Unica.
 
 ## Быстрая установка
 
@@ -32,14 +37,27 @@ iwr https://github.com/cherdynperm-tech/cunica/releases/latest/download/install-
 powershell -ExecutionPolicy Bypass -File .\install-cunica.ps1
 ```
 
-### PowerShell-only режим
+## Установка через чат Cursor
 
-Поддерживаемый путь — только PowerShell:
+Если в чате Cursor написать команду вида:
+
+```text
+установи https://github.com/cherdynperm-tech/cunica
+```
+
+агент должен автоматически выполнить сценарий:
+
+1. Клонировать или обновить локальный репозиторий `cunica`.
+2. Запустить установку:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1`
+3. Выполнить проверку:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1 -Verify`
+4. Сообщить итог: installed / updated / already installed / blocked.
+
+Если GitHub release недоступен из сети, используйте fallback:
 
 ```powershell
-git clone https://github.com/cherdynperm-tech/cunica.git
-cd cunica
-powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1 -ArchivePath C:\path\to\unica-codex-marketplace-win-x64.zip
 ```
 
 ## Подключение к 1С-проекту
@@ -78,23 +96,6 @@ powershell -ExecutionPolicy Bypass -File C:\path\to\cunica\scripts\cunica-init.p
 При установке Cunica автоматически добавляет глобальное правило Cursor
 `~/.cursor/rules/1c-unica-version-check.mdc`, которое требует от агента проверять
 версию/контракт Unica в начале планирования задач по 1С.
-
-## PowerShell quality standard
-
-В проект добавлены guidance-артефакты для качественных PowerShell-скриптов:
-
-- project rule: `.cursor/rules/powershell-quality.mdc`
-- project skill: `.cursor/skills/powershell-quality/SKILL.md`
-- global rule: `~/.cursor/rules/powershell-quality.mdc`
-- global skill: `~/.cursor/skills/powershell-quality/SKILL.md`
-
-Базовые проверки после изменения `.ps1`:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\test-powershell-quality.ps1
-```
-
-CI workflow: `.github/workflows/powershell-quality.yml`.
 
 ## Куда устанавливается
 

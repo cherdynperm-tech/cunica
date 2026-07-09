@@ -39,6 +39,26 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1
 - В целевом репозитории 1С:
   - `powershell -ExecutionPolicy Bypass -File C:\path\to\cunica\scripts\cunica-init.ps1 -ProjectDir <path-to-1c-project>`
 
+## Cursor chat install flow
+
+Фраза в чате Cursor:
+
+- `установи https://github.com/cherdynperm-tech/cunica`
+
+Ожидаемое поведение агента:
+
+1. Проверить, есть ли локальный репозиторий `cunica`.
+2. Если есть — обновить (`git pull`), если нет — клонировать.
+3. Выполнить:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1`
+4. Проверить результат:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1 -Verify`
+5. Вернуть явный статус: installed / updated / already installed / blocked.
+
+Fallback для сетевых ограничений:
+
+- `install-cunica.ps1 -ArchivePath C:\path\to\unica-codex-marketplace-win-x64.zip`
+
 ## Удаление
 
 - Полный uninstall:

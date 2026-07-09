@@ -1,0 +1,34 @@
+---
+description: Enable chat-triggered cunica installation flow from GitHub URL.
+alwaysApply: true
+---
+
+# Cursor Chat Install Flow for Cunica
+
+## Trigger
+
+If the user asks to install and provides a URL for the cunica repository
+(`https://github.com/cherdynperm-tech/cunica`), execute the install flow end-to-end.
+
+## Required execution flow
+
+1. Resolve local workspace path for cunica (current repo if already opened).
+2. If cunica repo already exists locally:
+   - fetch/pull latest changes for current branch.
+3. If repo does not exist:
+   - clone from the provided GitHub URL.
+4. Run installer:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1`
+5. Run verification:
+   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1 -Verify`
+   - if verify fails with "Unica is not installed", report this explicitly and provide next action.
+6. Report outcome clearly:
+   - installed / updated / already installed / blocked.
+
+## Safety and fallback
+
+- Do not run destructive git or filesystem commands.
+- If release download is blocked, suggest fallback:
+  - manual archive download
+  - `install-cunica.ps1 -ArchivePath C:\path\to\unica-codex-marketplace-win-x64.zip`
+- Do not modify user project files outside explicit install/init scope.
