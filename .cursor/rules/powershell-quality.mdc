@@ -1,0 +1,41 @@
+﻿---
+description: PowerShell script quality standard for agents and contributors.
+globs:
+  - "**/*.ps1"
+  - "**/*.psm1"
+alwaysApply: false
+---
+
+# PowerShell Quality Rule
+
+Use this rule whenever creating or editing PowerShell scripts.
+
+## Baseline
+
+- Start scripts/modules with:
+  - `Set-StrictMode -Version 2.0`
+  - `$ErrorActionPreference = 'Stop'`
+- Prefer small functions with explicit parameters over long inline blocks.
+- Validate required paths/inputs early and fail with clear actionable messages.
+- Avoid hidden side effects and avoid swallowing errors (`catch {}` without rethrow/log).
+
+## Compatibility
+
+- Keep compatibility with Windows PowerShell 5.1 where feasible.
+- Avoid constructs available only in PowerShell 7 unless explicitly required.
+- If a 7+ feature is used, document fallback or requirement in the script header.
+
+## Safety
+
+- Do not run destructive commands without explicit user intent.
+- Keep operations idempotent when possible.
+- For file writes, preserve encoding consistency (UTF-8 no BOM in this repo).
+
+## Required checks after .ps1 changes
+
+- Syntax check each touched script:
+  - `powershell -NoProfile -Command "[ScriptBlock]::Create((Get-Content '<file>' -Raw)) | Out-Null"`
+- Smoke-run key entrypoints in safe mode (for this repo):
+  - `scripts/install-cunica.ps1 -Status`
+  - `scripts/install-cunica.ps1 -PrintDownloadUrl`
+- If available locally, run PSScriptAnalyzer and fix introduced issues.

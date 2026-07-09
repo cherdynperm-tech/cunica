@@ -1,0 +1,11 @@
+# Local install artifacts (if testing inside repo)
+.build/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*~
