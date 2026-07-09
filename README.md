@@ -17,6 +17,7 @@
 | | |
 |---|---|
 | Версия разработки и тестов | **[0.6.1](https://github.com/IngvarConsulting/unica/releases/tag/v0.6.1)** (`v0.6.1`) |
+| Source of truth | `unica-contract.json` → `developmentVersion` |
 
 Cunica разработан и проверен для этой версии Unica.
 
@@ -52,6 +53,9 @@ powershell -ExecutionPolicy Bypass -File .\install-cunica.ps1
 ```
 
 Релизы `cunica` формируются автоматически при пуше тега формата `v*`.
+После успешной публикации релиза автоматически обновляется GitHub Pages:
+`https://cherdynperm-tech.github.io/cunica/`.
+Пошаговая инструкция для разработчика: `docs/memory-bank/commands-runbook.md` -> `Инструкция для разработчика (release publish)`.
 
 ## Установка через чат Cursor
 
