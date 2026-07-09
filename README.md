@@ -17,12 +17,25 @@
 | | |
 |---|---|
 | Версия разработки и тестов | **[0.6.1](https://github.com/IngvarConsulting/unica/releases/tag/v0.6.1)** (`v0.6.1`) |
+| Source of truth | `unica-contract.json` → `developmentVersion` |
 
 Cunica разработан и проверен для этой версии Unica.
 
+## Что нужно для работы
+
+Установка и все команды cunica выполняются в среде **Windows**.
+
+- Windows, [PowerShell](https://learn.microsoft.com/powershell/) 5.1+
+- [Cursor](https://cursor.com)
+- [Git](https://git-scm.com/) — для клонирования и обновления репозитория (не нужен при однострочной установке через `iwr`)
+- Интернет — для первой установки и обновлений
+- Платформа 1С — для операций с базами и конфигурациями (не нужна для установки cunica)
+
+Не требуется: Codex CLI, Rust, Python.
+
 ## Быстрая установка
 
-### Windows (PowerShell 5.1+)
+### Из репозитория
 
 ```powershell
 git clone https://github.com/cherdynperm-tech/cunica.git
@@ -30,12 +43,19 @@ cd cunica
 powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1
 ```
 
-Или одной командой (после публикации release):
+### Одной командой
+
+После публикации release на GitHub:
 
 ```powershell
 iwr https://github.com/cherdynperm-tech/cunica/releases/latest/download/install-cunica.ps1 -OutFile install-cunica.ps1
 powershell -ExecutionPolicy Bypass -File .\install-cunica.ps1
 ```
+
+Релизы `cunica` формируются автоматически при пуше тега формата `v*`.
+После успешной публикации релиза автоматически обновляется GitHub Pages:
+`https://cherdynperm-tech.github.io/cunica/`.
+Пошаговая инструкция для разработчика: `docs/memory-bank/commands-runbook.md` -> `Инструкция для разработчика (release publish)`.
 
 ## Установка через чат Cursor
 
@@ -106,14 +126,6 @@ powershell -ExecutionPolicy Bypass -File C:\path\to\cunica\scripts\cunica-init.p
 | `~/.cunica/manifest.json` | Версия, платформа, дата установки |
 | `~/.cursor/mcp.json` | MCP-конфиг (добавляется сервер `unica`) |
 | `~/.cursor/skills/unica-*` | Ссылки на skills Unica |
-
-## Что нужно для работы
-
-- [Cursor](https://cursor.com)
-- Для операций с базами и конфигурациями — установленная платформа 1С
-- Интернет для первой установки и обновлений
-
-Не требуется: Codex CLI, Rust, Python.
 
 ## Обновление Unica
 

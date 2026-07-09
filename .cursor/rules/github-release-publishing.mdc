@@ -1,0 +1,36 @@
+---
+description: Standardize GitHub Release publishing by tag for cunica.
+alwaysApply: true
+---
+
+# GitHub Release Publishing
+
+## Trigger
+
+Apply this flow when the task is about creating, validating, or troubleshooting
+GitHub Releases for `cunica`.
+
+## Required workflow
+
+1. Verify release trigger policy:
+   - releases are created from tags matching `v*`.
+2. Check release workflow file:
+   - `.github/workflows/release.yml`.
+3. Ensure workflow permissions include:
+   - `contents: write`.
+4. Ensure release asset is present:
+   - `install-cunica.ps1`.
+5. If changing release behavior, update docs:
+   - `README.md`
+   - `docs/memory-bank/commands-runbook.md`
+
+## Validation checklist
+
+- Tag format stays semver-like with `v` prefix (example: `v0.6.1`).
+- Release asset name is stable: `install-cunica.ps1`.
+- `releases/latest/download/install-cunica.ps1` path remains valid for users.
+
+## Safety
+
+- Do not force-push or rewrite tags unless explicitly requested.
+- Keep release process reproducible from clean checkout.

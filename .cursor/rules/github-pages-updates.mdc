@@ -1,0 +1,35 @@
+---
+description: Guardrails for updating GitHub Pages workflow and content.
+alwaysApply: true
+---
+
+# GitHub Pages Updates
+
+## Trigger
+
+Apply when tasks mention GitHub Pages, `gh-pages`, static docs publishing,
+site deployment, or pages workflow changes.
+
+## Required workflow
+
+1. Locate Pages pipeline in `.github/workflows/` before editing.
+2. Use standard GitHub Actions Pages flow where possible:
+   - `actions/configure-pages`
+   - `actions/upload-pages-artifact`
+   - `actions/deploy-pages`
+3. Ensure minimum permissions for Pages jobs:
+   - `pages: write`
+   - `id-token: write`
+4. Keep branch and output path decisions explicit in workflow or docs.
+5. Update runbook/docs whenever deployment commands or triggers change.
+
+## Validation checklist
+
+- Workflow has clear trigger (`push`, `workflow_dispatch`, or both).
+- Build output directory is documented and consistent.
+- Pages deployment does not rely on deprecated actions.
+
+## Safety
+
+- Do not delete existing pages content blindly.
+- Preserve backward-compatible URLs unless migration is explicit.

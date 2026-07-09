@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare release asset
+        shell: bash
+        run: cp "scripts/install-cunica.ps1" "install-cunica.ps1"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: install-cunica.ps1
+          generate_release_notes: true
+
+      - name: Generate GitHub Pages release block
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          ASSET_URL: https://github.com/cherdynperm-tech/cunica/releases/latest/download/install-cunica.ps1
+        run: |
+          mkdir -p pages
+          DATE_UTC="$(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          sed \
+            -e "s|__RELEASE_TAG__|${RELEASE_TAG}|g" \
+            -e "s|__RELEASE_DATE_UTC__|${DATE_UTC}|g" \
+            -e "s|__ASSET_URL__|${ASSET_URL}|g" \
+            docs/site/index.html > pages/index.html
+
+      - name: Upload Pages artifact for release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-pages-content
+          path: pages
