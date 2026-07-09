@@ -15,14 +15,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare release asset
+      - name: Prepare release assets
         shell: bash
-        run: cp "scripts/install-cunica.ps1" "install-cunica.ps1"
+        run: |
+          cp "scripts/install-cunica.ps1" "install-cunica.ps1"
+          mkdir -p dist/cunica-installer/scripts/lib dist/cunica-installer/templates
+          cp scripts/install-cunica.ps1 dist/cunica-installer/scripts/
+          cp scripts/cunica-init.ps1 dist/cunica-installer/scripts/
+          cp scripts/lib/cunica-common.ps1 dist/cunica-installer/scripts/lib/
+          cp unica-contract.json dist/cunica-installer/
+          cp templates/1c-unica.mdc templates/1c-unica-version-check.mdc dist/cunica-installer/templates/
+          (cd dist/cunica-installer && zip -r ../cunica-installer.zip .)
+          test -f dist/cunica-installer.zip
+          test -f dist/cunica-installer/scripts/install-cunica.ps1
+          test -f dist/cunica-installer/unica-contract.json
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: install-cunica.ps1
+          files: |
+            install-cunica.ps1
+            dist/cunica-installer.zip
           generate_release_notes: true
 
       - name: Generate GitHub Pages release block

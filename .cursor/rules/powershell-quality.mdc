@@ -19,6 +19,13 @@ Use this rule whenever creating or editing PowerShell scripts.
 - Validate required paths/inputs early and fail with clear actionable messages.
 - Avoid hidden side effects and avoid swallowing errors (`catch {}` without rethrow/log).
 
+## Language (scripts only)
+
+- All user-facing output (`Write-Output`, `Write-Warning`, `throw` messages) must be **English**.
+- All comments and function/script documentation in `.ps1`/`.psm1` must be **English**.
+- Do not add Russian or other non-English prose inside PowerShell scripts; keep localized text in `README.md`, docs, and `.mdc` rules instead.
+- Allowed in scripts: URLs, paths, product names (`Unica`, `Cunica`), and machine-readable tokens (`CUNICA_RESULT=`, etc.).
+
 ## Compatibility
 
 - Keep compatibility with Windows PowerShell 5.1 where feasible.

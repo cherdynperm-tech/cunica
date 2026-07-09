@@ -33,9 +33,9 @@ Prefer skills with prefix `unica-` for 1C tasks, for example:
 - Local overrides may live in `v8project.local.yaml` (not committed; may contain credentials).
 - XML source layout is typically under `src/` with `Configuration.xml`.
 - At planning start for 1C tasks, verify Unica contract/version with:
-  - `powershell -ExecutionPolicy Bypass -File <path-to-cunica>/scripts/install-cunica.ps1 -Verify`
+  - `powershell -ExecutionPolicy Bypass -File $env:USERPROFILE\.cunica\installer\scripts\install-cunica.ps1 -AgentCheck`
 - If update is needed, ask user and use:
-  - `powershell -ExecutionPolicy Bypass -File <path-to-cunica>/scripts/install-cunica.ps1 -Update`
+  - `powershell -ExecutionPolicy Bypass -File $env:USERPROFILE\.cunica\installer\scripts\install-cunica.ps1 -AgentUpdate`
 
 ## Safety
 

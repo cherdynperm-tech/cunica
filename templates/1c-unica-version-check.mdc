@@ -13,9 +13,9 @@ alwaysApply: true
 For 1C project planning sessions:
 
 - Before producing a plan, run:
-  - `powershell -ExecutionPolicy Bypass -File <path-to-cunica>/scripts/install-cunica.ps1 -Verify -StrictVersion`
+  - `powershell -ExecutionPolicy Bypass -File $env:USERPROFILE\.cunica\installer\scripts\install-cunica.ps1 -AgentCheck`
 - If strict verification fails, stop planning and ask the user to run:
-  - `powershell -ExecutionPolicy Bypass -File <path-to-cunica>/scripts/install-cunica.ps1 -Update`
+  - `powershell -ExecutionPolicy Bypass -File $env:USERPROFILE\.cunica\installer\scripts\install-cunica.ps1 -AgentUpdate`
   - or install the required version explicitly.
 - If verification shows warning (without strict mode), include the warning in the plan assumptions.
 

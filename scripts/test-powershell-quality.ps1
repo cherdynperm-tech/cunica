@@ -17,6 +17,7 @@ if ($scriptFiles.Count -eq 0) {
 $entryScripts = @(
     (Join-Path $repoRoot "scripts\install-cunica.ps1"),
     (Join-Path $repoRoot "scripts\cunica-init.ps1"),
+    (Join-Path $repoRoot "scripts\build-installer-zip.ps1"),
     (Join-Path $repoRoot "scripts\test-powershell-quality.ps1")
 )
 
@@ -51,6 +52,12 @@ foreach ($file in $scriptFiles) {
     } else {
         Add-Pass "no empty catch: $relative"
     }
+
+    if ($content -match '[\u0400-\u04FF]') {
+        Add-Failure "non-English (Cyrillic) text in script: $relative"
+    } else {
+        Add-Pass "english-only script text: $relative"
+    }
 }
 
 foreach ($entry in $entryScripts) {
@@ -80,6 +87,122 @@ if ((Get-GitHubReleaseTag -Version "0.6.1") -ne "v0.6.1") {
     Add-Failure "Get-GitHubReleaseTag: 0.6.1 -> v0.6.1"
 } else {
     Add-Pass "Get-GitHubReleaseTag: 0.6.1 -> v0.6.1"
+}
+
+function Test-CunicaBoundSwitchPresent {
+    param($Value)
+
+    return ($Value -is [System.Management.Automation.SwitchParameter] -and $Value.IsPresent)
+}
+
+function Get-CunicaBoundForwardArgs {
+    param([hashtable]$BoundParameters)
+
+    $forward = @()
+    foreach ($entry in $BoundParameters.GetEnumerator()) {
+        $name = [string]$entry.Key
+        $value = $entry.Value
+        if (Test-CunicaBoundSwitchPresent -Value $value) {
+            $forward += "-$name"
+        } elseif ($null -ne $value -and "$value".Length -gt 0) {
+            $forward += "-$name", "$value"
+        }
+    }
+    return $forward
+}
+
+$forwardTest = {
+    param(
+        [switch]$Quiet,
+        [switch]$AgentInstall,
+        [switch]$Verify,
+        [string]$ProjectDir = ""
+    )
+    Get-CunicaBoundForwardArgs -BoundParameters $PSBoundParameters
+}
+$forwardArgs = & $forwardTest -AgentInstall -Quiet -Verify -ProjectDir "C:\proj"
+if ($forwardArgs -notcontains "-AgentInstall" -or $forwardArgs -notcontains "-Quiet" -or $forwardArgs -notcontains "-Verify") {
+    Add-Failure "bootstrap forward: switch parameters not forwarded"
+} elseif ($forwardArgs -notcontains "-ProjectDir" -or $forwardArgs -notcontains "C:\proj") {
+    Add-Failure "bootstrap forward: string parameters not forwarded"
+} else {
+    Add-Pass "bootstrap forward: switch and string parameters"
+}
+
+$installScriptPath = Join-Path $repoRoot "scripts\install-cunica.ps1"
+$installScriptContent = Get-Content -LiteralPath $installScriptPath -Raw -Encoding UTF8
+if ($installScriptContent -notmatch 'Test-BoundSwitchPresent') {
+    Add-Failure "install-cunica.ps1: missing Test-BoundSwitchPresent helper"
+} elseif ($installScriptContent -match '\$value\s+-is\s+\[switch\]') {
+    Add-Failure "install-cunica.ps1: bootstrap forward still uses -is [switch]"
+} else {
+    Add-Pass "install-cunica.ps1: bootstrap switch forwarding helper"
+}
+
+$commonContent = Get-Content -LiteralPath $libPath -Raw -Encoding UTF8
+if ($commonContent -notmatch 'function Ensure-CunicaInstallerBundle\s*\{[^\}]*param\(\[switch\]\$Quiet\)') {
+    Add-Failure "Ensure-CunicaInstallerBundle: missing -Quiet parameter"
+} elseif ($commonContent -notmatch 'Invoke-DownloadFile -Url \$zipUrl -Destination \$zipPath -Quiet:\$Quiet') {
+    Add-Failure "Ensure-CunicaInstallerBundle: Invoke-DownloadFile must use -Quiet:`$Quiet"
+} else {
+    Add-Pass "Ensure-CunicaInstallerBundle: respects -Quiet for download"
+}
+
+$tmp1c = Join-Path $env:TEMP ("cunica-1c-test-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force -Path (Join-Path $tmp1c "src") | Out-Null
+"<?xml version=`"1.0`"?>" | Out-File -LiteralPath (Join-Path $tmp1c "src\Configuration.xml") -Encoding utf8
+if (-not (Test-OneCProjectDir -Path $tmp1c)) {
+    Add-Failure "Test-OneCProjectDir: expected true for src/Configuration.xml"
+} else {
+    Add-Pass "Test-OneCProjectDir: src/Configuration.xml"
+}
+Remove-Item -LiteralPath $tmp1c -Recurse -Force -ErrorAction SilentlyContinue
+
+$tmpEmpty = Join-Path $env:TEMP ("cunica-empty-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Force -Path $tmpEmpty | Out-Null
+if (Test-OneCProjectDir -Path $tmpEmpty) {
+    Add-Failure "Test-OneCProjectDir: expected false for empty dir"
+} else {
+    Add-Pass "Test-OneCProjectDir: empty dir"
+}
+Remove-Item -LiteralPath $tmpEmpty -Recurse -Force -ErrorAction SilentlyContinue
+
+$prevLogDisabled = $script:CunicaInstallLogDisabled
+$script:CunicaInstallLogDisabled = $false
+$script:CunicaLogPath = $null
+$script:CunicaLogOwner = $null
+$testLog = Start-CunicaInstallLog -Context "quality-test" -Metadata @{ test = "1" }
+if (-not $testLog -or -not (Test-Path -LiteralPath $testLog)) {
+    Add-Failure "Start-CunicaInstallLog: log file not created"
+} else {
+    Write-CunicaInstallLog -Message "quality-check"
+    Complete-CunicaInstallLog -Status "completed" -Context "quality-test"
+    $logContent = Get-Content -LiteralPath $testLog -Raw -Encoding UTF8
+    if ($logContent -notmatch "quality-check") {
+        Add-Failure "Write-CunicaInstallLog: message missing in log"
+    } else {
+        Add-Pass "install log session"
+    }
+    Remove-Item -LiteralPath $testLog -Force -ErrorAction SilentlyContinue
+}
+$script:CunicaInstallLogDisabled = $prevLogDisabled
+$script:CunicaLogPath = $null
+$script:CunicaLogOwner = $null
+
+$buildZip = Join-Path $repoRoot "scripts\build-installer-zip.ps1"
+if (Test-Path -LiteralPath $buildZip) {
+  $buildOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $buildZip 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    Add-Failure "build-installer-zip.ps1 failed: $($buildOutput | Out-String)"
+  } else {
+    $zipPath = Join-Path $repoRoot "dist\cunica-installer.zip"
+    if (-not (Test-Path -LiteralPath $zipPath)) {
+      Add-Failure "missing dist/cunica-installer.zip"
+    } else {
+      Add-Pass "build-installer-zip.ps1"
+      Add-Pass "dist/cunica-installer.zip exists"
+    }
+  }
 }
 
 if (-not $SkipSmoke) {

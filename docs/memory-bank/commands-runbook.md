@@ -40,6 +40,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1
 - Релиз `cunica` формируется автоматически GitHub Actions workflow
   `.github/workflows/release.yml` при пуше тега формата `v*`.
 - В релиз публикуется asset `install-cunica.ps1` (берется из `scripts/install-cunica.ps1`).
+- В релиз публикуется asset `cunica-installer.zip` (scripts, contract, templates для chat-install без git).
 - После успешного release-run обновляется GitHub Pages workflow
   `.github/workflows/pages.yml` и публикуется страница:
   `https://cherdynperm-tech.github.io/cunica/`.
@@ -103,19 +104,33 @@ git push origin v0.6.2
 
 - `установи https://github.com/cherdynperm-tech/cunica`
 
-Ожидаемое поведение агента:
+Intent: установить **Unica для 1С в Cursor**, не клонировать репозиторий cunica.
 
-1. Проверить, есть ли локальный репозиторий `cunica`.
-2. Если есть — обновить (`git pull`), если нет — клонировать.
-3. Выполнить:
-   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1`
-4. Проверить результат:
-   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1 -Verify`
-5. Вернуть явный статус: installed / updated / already installed / blocked.
+Ожидаемое поведение агента (без git):
+
+```powershell
+$installer = Join-Path $env:USERPROFILE '.cunica\installer\scripts\install-cunica.ps1'
+if (-not (Test-Path -LiteralPath $installer)) {
+  $zip = Join-Path $env:TEMP 'cunica-installer.zip'
+  $dest = Join-Path $env:USERPROFILE '.cunica\installer'
+  New-Item -ItemType Directory -Force -Path $dest | Out-Null
+  Invoke-WebRequest 'https://github.com/cherdynperm-tech/cunica/releases/latest/download/cunica-installer.zip' -OutFile $zip -UseBasicParsing
+  Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
+  Remove-Item -LiteralPath $zip -Force
+}
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -AgentInstall -Quiet -ProjectDir (Get-Location).Path
+```
+
+Парсить `CUNICA_RESULT=`, `CUNICA_PROJECT_INIT=` и `CUNICA_LOG_PATH=`. Если `needed` — спросить пользователя и запустить `cunica-init.ps1`.
+
+Логи: `~/.cunica/logs/install-*.log` (отключить `-NoInstallLog` или `CUNICA_INSTALL_LOG=0`).
+
+Dev-mode: если workspace — checkout cunica (`scripts/install-cunica.ps1` + `unica-contract.json`), использовать локальный `-AgentInstall`.
 
 Fallback для сетевых ограничений:
 
 - `install-cunica.ps1 -ArchivePath C:\path\to\unica-codex-marketplace-win-x64.zip`
+- ручной `cunica-installer.zip` в `%USERPROFILE%\.cunica\installer`
 
 ## Удаление
 
@@ -147,6 +162,8 @@ Fallback для сетевых ограничений:
 - Skill (project): `.cursor/skills/powershell-quality/SKILL.md`
 - Rule (global): `~/.cursor/rules/powershell-quality.mdc`
 - Skill (global): `~/.cursor/skills/powershell-quality/SKILL.md`
+
+PowerShell scripts (`.ps1`/`.psm1`) must use **English only** for comments and user-facing messages; localized docs stay in `README.md` and `docs/`.
 
 Минимальный чеклист (одной командой):
 

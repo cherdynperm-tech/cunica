@@ -1,12 +1,20 @@
 # Shared helpers for Cunica (Unica adapter for Cursor).
 
 $script:CunicaRepo = if ($env:UNICA_REPO) { $env:UNICA_REPO } else { "IngvarConsulting/unica" }
+$script:CunicaProjectRepo = if ($env:CUNICA_PROJECT_REPO) { $env:CUNICA_PROJECT_REPO } else { "cherdynperm-tech/cunica" }
 $script:CunicaHomeName = ".cunica"
+$script:CunicaInstallerDirName = "installer"
+$script:CunicaInstallerZipName = "cunica-installer.zip"
 $script:CursorHomeName = ".cursor"
 $script:SkillPrefix = "unica-"
 $script:McpServerName = "unica"
 $script:CunicaContractPath = $null
 $script:GlobalPlanningRuleName = "1c-unica-version-check.mdc"
+$script:DownloadQuiet = $false
+$script:CunicaLogDirName = "logs"
+$script:CunicaLogPath = $null
+$script:CunicaInstallLogDisabled = $false
+$script:CunicaLogOwner = $null
 
 function Set-CunicaContractPath {
     param([string]$Path)
@@ -256,15 +264,351 @@ function Write-Utf8NoBomFile {
     [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
 }
 
+function Get-CunicaInstallerHome {
+    if ($env:CUNICA_INSTALLER_PATH) {
+        return (Resolve-Path -LiteralPath $env:CUNICA_INSTALLER_PATH).Path
+    }
+    return Join-Path (Get-CunicaHome) $script:CunicaInstallerDirName
+}
+
+function Get-CunicaInstallerScriptPath {
+    return Join-Path (Get-CunicaInstallerHome) (Join-Path "scripts" "install-cunica.ps1")
+}
+
+function Get-CunicaInstallerZipUrl {
+    if ($env:CUNICA_INSTALLER_ZIP_URL) {
+        return $env:CUNICA_INSTALLER_ZIP_URL
+    }
+    return "https://github.com/$($script:CunicaProjectRepo)/releases/latest/download/$($script:CunicaInstallerZipName)"
+}
+
+function Test-OneCProjectDir {
+    param([string]$Path)
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path)) {
+        return $false
+    }
+    if (Test-Path -LiteralPath (Join-Path $Path "src\Configuration.xml")) {
+        return $true
+    }
+    if (Test-Path -LiteralPath (Join-Path $Path "Configuration.xml")) {
+        return $true
+    }
+    $srcDir = Join-Path $Path "src"
+    if (Test-Path -LiteralPath $srcDir) {
+        $bsl = Get-ChildItem -LiteralPath $srcDir -Filter "*.bsl" -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($bsl) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-CunicaProjectInitialized {
+    param([string]$Path)
+    $mcpPath = Join-Path $Path (Join-Path ".cursor" "mcp.json")
+    if (-not (Test-Path -LiteralPath $mcpPath)) {
+        return $false
+    }
+    $raw = Get-Content -LiteralPath $mcpPath -Raw -Encoding UTF8
+    return ($raw -match '"unica"')
+}
+
+function Test-CunicaInstallLogEnabled {
+    if ($script:CunicaInstallLogDisabled) {
+        return $false
+    }
+    if ($env:CUNICA_INSTALL_LOG -match '^(0|false|off|no)$') {
+        return $false
+    }
+    return $true
+}
+
+function Get-CunicaLogDir {
+    $dir = Join-Path (Get-CunicaHome) $script:CunicaLogDirName
+    if (-not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    return $dir
+}
+
+function Get-CunicaInstallLogPath {
+    return $script:CunicaLogPath
+}
+
+function Write-CunicaInstallLog {
+    param(
+        [string]$Message,
+        [switch]$SkipTimestampPrefix
+    )
+    if (-not (Test-CunicaInstallLogEnabled)) {
+        return
+    }
+    if (-not $script:CunicaLogPath) {
+        return
+    }
+    $line = if ($SkipTimestampPrefix) {
+        $Message
+    } else {
+        "[{0}] {1}" -f (Get-Date).ToUniversalTime().ToString("o"), $Message
+    }
+    $payload = $line + [Environment]::NewLine
+    [System.IO.File]::AppendAllText($script:CunicaLogPath, $payload, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Start-CunicaInstallLog {
+    param(
+        [string]$Context = "install",
+        [hashtable]$Metadata = @{}
+    )
+    if (-not (Test-CunicaInstallLogEnabled)) {
+        return $null
+    }
+    if ($script:CunicaLogPath) {
+        return $script:CunicaLogPath
+    }
+
+    $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
+    $fileName = "install-$stamp-$PID-$Context.log"
+    $path = Join-Path (Get-CunicaLogDir) $fileName
+    $script:CunicaLogPath = $path
+    $script:CunicaLogOwner = $Context
+
+    Write-CunicaInstallLog -Message "=== Cunica install session started ===" -SkipTimestampPrefix
+    Write-CunicaInstallLog -Message "context=$Context"
+    Write-CunicaInstallLog -Message "user=$env:USERNAME computer=$env:COMPUTERNAME"
+    foreach ($entry in $Metadata.GetEnumerator()) {
+        Write-CunicaInstallLog -Message ("{0}={1}" -f $entry.Key, $entry.Value)
+    }
+    return $path
+}
+
+function Complete-CunicaInstallLog {
+    param(
+        [string]$Status = "completed",
+        [string]$Context = ""
+    )
+    if (-not $script:CunicaLogPath) {
+        return
+    }
+    if ($Context -and $script:CunicaLogOwner -and $script:CunicaLogOwner -ne $Context) {
+        return
+    }
+    Write-CunicaInstallLog -Message "=== session $Status ==="
+    $script:CunicaLogPath = $null
+    $script:CunicaLogOwner = $null
+}
+
+function Write-InstallOutput {
+    param([string]$Message)
+    Write-Output $Message
+    Write-CunicaInstallLog -Message $Message
+}
+
+function Write-CunicaAgentResult {
+    param(
+        [string]$Result,
+        [string]$Version = "",
+        [string]$Target = "",
+        [string]$ProjectInit = "not_applicable",
+        [string]$InstallerPath = "",
+        [string]$LogPath = ""
+    )
+    Write-Output "CUNICA_RESULT=$Result"
+    if ($Version) {
+        Write-Output "CUNICA_VERSION=$Version"
+    }
+    if ($Target) {
+        Write-Output "CUNICA_TARGET=$Target"
+    }
+    Write-Output "CUNICA_PROJECT_INIT=$ProjectInit"
+    if ($InstallerPath) {
+        Write-Output "CUNICA_INSTALLER=$InstallerPath"
+    }
+    $resolvedLogPath = if ($LogPath) { $LogPath } else { $script:CunicaLogPath }
+    if ($resolvedLogPath) {
+        Write-Output "CUNICA_LOG_PATH=$resolvedLogPath"
+        Write-CunicaInstallLog -Message "CUNICA_RESULT=$Result"
+        if ($Version) {
+            Write-CunicaInstallLog -Message "CUNICA_VERSION=$Version"
+        }
+        if ($Target) {
+            Write-CunicaInstallLog -Message "CUNICA_TARGET=$Target"
+        }
+        Write-CunicaInstallLog -Message "CUNICA_PROJECT_INIT=$ProjectInit"
+        Write-CunicaInstallLog -Message "CUNICA_LOG_PATH=$resolvedLogPath"
+    }
+}
+
+function Ensure-CunicaInstallerBundle {
+    param([switch]$Quiet)
+
+    $installerHome = Get-CunicaInstallerHome
+    $installerScript = Get-CunicaInstallerScriptPath
+    $installerLib = Join-Path (Split-Path $installerScript -Parent) (Join-Path "lib" "cunica-common.ps1")
+    if ((Test-Path -LiteralPath $installerScript) -and (Test-Path -LiteralPath $installerLib)) {
+        return $installerScript
+    }
+
+    if (-not (Test-Path -LiteralPath $installerHome)) {
+        New-Item -ItemType Directory -Path $installerHome -Force | Out-Null
+    }
+
+    $zipUrl = Get-CunicaInstallerZipUrl
+    $zipPath = Join-Path ([System.IO.Path]::GetTempPath()) ("cunica-installer-" + [Guid]::NewGuid().ToString("N") + ".zip")
+    try {
+        Write-InstallOutput "==> Download installer bundle: $zipUrl"
+        Invoke-DownloadFile -Url $zipUrl -Destination $zipPath -Quiet:$Quiet
+        Write-CunicaInstallLog -Message "installer bundle downloaded: $zipPath"
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $installerHome -Force
+        Write-CunicaInstallLog -Message "installer bundle extracted to: $installerHome"
+    } finally {
+        if (Test-Path -LiteralPath $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $installerScript)) {
+        throw "Installer bootstrap failed. Expected: $installerScript"
+    }
+    return $installerScript
+}
+
+function Invoke-CunicaAgentInstall {
+    param(
+        [string]$ProjectDir = "",
+        [string]$InstallerScriptPath,
+        [string]$GlobalRuleSourcePath = "",
+        [switch]$Quiet
+    )
+
+    if ($Quiet) {
+        $script:DownloadQuiet = $true
+    }
+
+    $logPath = Start-CunicaInstallLog -Context "agent-install" -Metadata @{
+        installer = $InstallerScriptPath
+        projectDir = $ProjectDir
+        quiet      = [string]$Quiet.IsPresent
+    }
+
+    $result = "already_installed"
+    $projectInit = "not_applicable"
+    $sessionStatus = "completed"
+
+    try {
+        $manifestBefore = Read-CunicaManifest
+        if ($manifestBefore) {
+            Write-CunicaInstallLog -Message "manifest.version=$($manifestBefore.version)"
+        } else {
+            Write-CunicaInstallLog -Message "manifest=not_installed"
+        }
+
+        if (-not $manifestBefore) {
+            Write-CunicaInstallLog -Message "action=install_latest"
+            Install-CunicaRelease `
+                -Version "latest" `
+                -GlobalRuleSourcePath $GlobalRuleSourcePath `
+                -Quiet:$Quiet | Out-Null
+            $result = "installed"
+        } else {
+            $latest = Get-LatestReleaseTag
+            Write-CunicaInstallLog -Message "latest_release=$latest"
+            if ($latest -ne [string]$manifestBefore.version) {
+                $releaseDir = Join-Path (Get-CunicaHome) (Join-Path "releases" $latest)
+                if (Test-Path -LiteralPath $releaseDir) {
+                    Write-CunicaInstallLog -Message "action=switch_cached version=$latest"
+                    Switch-CunicaVersion -Version $latest -GlobalRuleSourcePath $GlobalRuleSourcePath
+                } else {
+                    Write-CunicaInstallLog -Message "action=install_update version=$latest"
+                    Install-CunicaRelease `
+                        -Version $latest `
+                        -Target ([string]$manifestBefore.target) `
+                        -GlobalRuleSourcePath $GlobalRuleSourcePath `
+                        -Quiet:$Quiet | Out-Null
+                }
+                $result = "updated"
+            } else {
+                Write-CunicaInstallLog -Message "action=already_installed"
+            }
+        }
+
+        $verifyLines = @(Verify-InstalledUnicaContract)
+        foreach ($line in $verifyLines) {
+            Write-CunicaInstallLog -Message "verify: $line"
+        }
+
+        $manifest = Read-CunicaManifest
+        if (-not $manifest) {
+            throw "Unica is not installed after agent install."
+        }
+
+        Write-CunicaManifest `
+            -Version ([string]$manifest.version) `
+            -Target ([string]$manifest.target) `
+            -ReleaseDir ([string]$manifest.releaseDir) `
+            -InstallerPath $InstallerScriptPath `
+            -LastInstallLogPath $logPath
+
+        if ($ProjectDir) {
+            $projectDirResolved = (Resolve-Path -LiteralPath $ProjectDir).Path
+            Write-CunicaInstallLog -Message "project_dir=$projectDirResolved"
+            if (Test-OneCProjectDir -Path $projectDirResolved) {
+                if (Test-CunicaProjectInitialized -Path $projectDirResolved) {
+                    $projectInit = "done"
+                } else {
+                    $projectInit = "needed"
+                }
+            } else {
+                $projectInit = "skipped"
+            }
+            Write-CunicaInstallLog -Message "project_init=$projectInit"
+        }
+
+        if ($logPath) {
+            Write-InstallOutput "==> Install log: $logPath"
+        }
+
+        Write-CunicaAgentResult `
+            -Result $result `
+            -Version ([string]$manifest.version) `
+            -Target ([string]$manifest.target) `
+            -ProjectInit $projectInit `
+            -InstallerPath $InstallerScriptPath `
+            -LogPath $logPath
+    } catch {
+        $sessionStatus = "blocked"
+        Write-CunicaInstallLog -Message ("error={0}" -f $_.Exception.Message)
+        Write-CunicaAgentResult `
+            -Result "blocked" `
+            -ProjectInit "not_applicable" `
+            -InstallerPath $InstallerScriptPath `
+            -LogPath $logPath
+        if ($logPath) {
+            Write-InstallOutput "==> Install log: $logPath"
+        }
+        throw
+    } finally {
+        $script:DownloadQuiet = $false
+        Complete-CunicaInstallLog -Status $sessionStatus -Context "agent-install"
+    }
+}
+
 function Invoke-DownloadFile {
     param(
         [string]$Url,
-        [string]$Destination
+        [string]$Destination,
+        [switch]$Quiet
     )
     $errors = New-Object System.Collections.Generic.List[string]
+    $useQuiet = $Quiet -or $script:DownloadQuiet
 
     if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-        & curl.exe -fL --retry 5 --retry-delay 3 --http1.1 "$Url" -o "$Destination"
+        if ($useQuiet) {
+            & curl.exe -fsSL --retry 5 --retry-delay 3 --http1.1 "$Url" -o "$Destination"
+        } else {
+            & curl.exe -fL --retry 5 --retry-delay 3 --http1.1 "$Url" -o "$Destination"
+        }
         if ($LASTEXITCODE -eq 0) { return }
         $errors.Add("curl.exe exited with code $LASTEXITCODE") | Out-Null
     }
@@ -401,7 +745,9 @@ function Write-CunicaManifest {
     param(
         [string]$Version,
         [string]$Target,
-        [string]$ReleaseDir
+        [string]$ReleaseDir,
+        [string]$InstallerPath = "",
+        [string]$LastInstallLogPath = ""
     )
     $contractDev = $null
     $contractPath = $null
@@ -413,6 +759,25 @@ function Write-CunicaManifest {
         # Contract metadata is optional when installing outside the cunica repository.
     }
 
+    $installerPathValue = $InstallerPath
+    if (-not $installerPathValue) {
+        $existing = Read-CunicaManifest
+        if ($existing -and $existing.PSObject.Properties.Name -contains "installerPath") {
+            $installerPathValue = [string]$existing.installerPath
+        }
+    }
+
+    $lastInstallLogPathValue = $LastInstallLogPath
+    if (-not $lastInstallLogPathValue) {
+        $existing = Read-CunicaManifest
+        if ($existing -and $existing.PSObject.Properties.Name -contains "lastInstallLogPath") {
+            $lastInstallLogPathValue = [string]$existing.lastInstallLogPath
+        }
+    }
+    if (-not $lastInstallLogPathValue -and $script:CunicaLogPath) {
+        $lastInstallLogPathValue = $script:CunicaLogPath
+    }
+
     $manifest = [ordered]@{
         version                    = $Version
         target                     = $Target
@@ -421,6 +786,8 @@ function Write-CunicaManifest {
         releaseDir                 = $ReleaseDir
         contractDevelopmentVersion = $contractDev
         contractPath               = $contractPath
+        installerPath              = $installerPathValue
+        lastInstallLogPath         = $lastInstallLogPathValue
     }
     $path = Join-Path (Get-CunicaHome) "manifest.json"
     $json = $manifest | ConvertTo-Json -Depth 4
@@ -530,8 +897,21 @@ function Install-CunicaRelease {
         [string]$Target = "",
         [string]$ArchivePath = "",
         [string]$GlobalRuleSourcePath = "",
-        [switch]$SkipVerify
+        [switch]$SkipVerify,
+        [switch]$Quiet
     )
+
+    if ($Quiet) {
+        $script:DownloadQuiet = $true
+    }
+
+    $logPath = Start-CunicaInstallLog -Context "install" -Metadata @{
+        version     = $Version
+        target      = $Target
+        archivePath = $ArchivePath
+        quiet       = [string]$Quiet.IsPresent
+    }
+    $sessionStatus = "completed"
 
     $resolvedTarget = Get-CunicaTarget -Override $Target
 
@@ -544,17 +924,21 @@ function Install-CunicaRelease {
         $extractDir = Join-Path $tmpRoot "extract"
         New-Item -ItemType Directory -Path $extractDir | Out-Null
 
-        Write-Output "==> Unica target: $resolvedTarget"
+        Write-InstallOutput "==> Unica target: $resolvedTarget"
         if ($ArchivePath) {
             if (-not (Test-Path -LiteralPath $ArchivePath)) {
                 throw "Archive not found: $ArchivePath"
             }
-            Write-Output "==> Using local archive: $ArchivePath"
+            Write-InstallOutput "==> Using local archive: $ArchivePath"
             Copy-Item -LiteralPath $ArchivePath -Destination $archive
         } else {
             $url = Get-ReleaseAssetUrl -Target $resolvedTarget -Version $Version
-            Write-Output "==> Download: $url"
-            Invoke-DownloadFile -Url $url -Destination $archive
+            Write-InstallOutput "==> Download: $url"
+            Invoke-DownloadFile -Url $url -Destination $archive -Quiet:$Quiet
+            if (Test-Path -LiteralPath $archive) {
+                $sizeMb = [math]::Round((Get-Item -LiteralPath $archive).Length / 1MB, 2)
+                Write-CunicaInstallLog -Message "download_complete size_mb=$sizeMb path=$archive"
+            }
         }
 
         if ($ext -eq "zip") {
@@ -595,7 +979,11 @@ function Install-CunicaRelease {
         $currentLink = Join-Path $cunicaHome "current"
         Set-DirectoryLink -LinkPath $currentLink -TargetPath $installedPluginRoot
 
-        Write-CunicaManifest -Version $pluginVersion -Target $resolvedTarget -ReleaseDir $releaseDir
+        Write-CunicaManifest `
+            -Version $pluginVersion `
+            -Target $resolvedTarget `
+            -ReleaseDir $releaseDir `
+            -LastInstallLogPath $logPath
 
         $mcpPath = Join-Path (Get-CursorHome) "mcp.json"
         Merge-McpJson -McpPath $mcpPath -UnicaEntry (Get-McpUnicaEntry -Target $resolvedTarget)
@@ -621,17 +1009,26 @@ function Install-CunicaRelease {
             }
         }
 
-        Write-Output "==> Installed Unica $pluginVersion for Cursor"
-        Write-Output "==> Plugin root: $installedPluginRoot"
-        Write-Output "==> Skills linked: $skillCount"
+        Write-InstallOutput "==> Installed Unica $pluginVersion for Cursor"
+        Write-InstallOutput "==> Plugin root: $installedPluginRoot"
+        Write-InstallOutput "==> Skills linked: $skillCount"
         if ($globalRuleDest) {
-            Write-Output "==> Global rule: $globalRuleDest"
+            Write-InstallOutput "==> Global rule: $globalRuleDest"
         }
-        Write-Output "==> MCP config: $mcpPath"
-        Write-Output "==> Restart Cursor to activate MCP server 'unica'"
+        Write-InstallOutput "==> MCP config: $mcpPath"
+        if ($logPath) {
+            Write-InstallOutput "==> Install log: $logPath"
+        }
+        Write-InstallOutput "==> Restart Cursor to activate MCP server 'unica'"
 
         return $pluginVersion
+    } catch {
+        $sessionStatus = "failed"
+        Write-CunicaInstallLog -Message ("error={0}" -f $_.Exception.Message)
+        throw
     } finally {
+        $script:DownloadQuiet = $false
+        Complete-CunicaInstallLog -Status $sessionStatus -Context "install"
         if (Test-Path -LiteralPath $tmpRoot) {
             Remove-Item -LiteralPath $tmpRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
@@ -690,6 +1087,12 @@ function Show-CunicaStatus {
     Write-Output "Target:            $($manifest.target)"
     Write-Output "Installed at:      $($manifest.installedAt)"
     Write-Output "Plugin root:       $(Get-CurrentPluginRoot)"
+    if ($manifest.PSObject.Properties.Name -contains "lastInstallLogPath" -and $manifest.lastInstallLogPath) {
+        Write-Output "Last install log:  $($manifest.lastInstallLogPath)"
+    }
+    if ($manifest.PSObject.Properties.Name -contains "installerPath" -and $manifest.installerPath) {
+        Write-Output "Installer:         $($manifest.installerPath)"
+    }
 
     try {
         $contract = Get-CunicaContract

@@ -19,6 +19,7 @@ Use this skill for any change touching `.ps1` or `.psm1` files.
 3. Validate inputs and paths before side effects.
 4. Return or print deterministic outputs for automation.
 5. Emit clear error messages with recovery hints.
+6. Use **English only** for script comments and user-facing messages (`Write-Output`, `Write-Warning`, `throw`). Do not put Russian or other localized prose in `.ps1`/`.psm1` files.
 
 ## Review checklist
 
@@ -27,6 +28,7 @@ Use this skill for any change touching `.ps1` or `.psm1` files.
 - No destructive command execution without explicit user request.
 - Encoding and path handling are consistent.
 - Script remains compatible with Windows PowerShell 5.1 unless documented otherwise.
+- No Cyrillic or other non-English prose in comments or runtime messages.
 
 ## Anti-patterns and fixes
 

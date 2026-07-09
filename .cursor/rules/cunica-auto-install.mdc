@@ -1,34 +1,68 @@
 ---
-description: Enable chat-triggered cunica installation flow from GitHub URL.
+description: Enable chat-triggered Unica installation for 1C projects in Cursor (no git).
 alwaysApply: true
 ---
 
-# Cursor Chat Install Flow for Cunica
+# Cursor Chat Install Flow for Unica (via Cunica)
+
+## Intent
+
+When the user asks to install cunica/unica (for example `установи https://github.com/cherdynperm-tech/cunica`):
+
+- install **Unica for 1C development in Cursor** (global runtime, MCP, skills);
+- do **not** clone the cunica source repository into the workspace;
+- workspace is usually a **1C project**, not the cunica repo.
 
 ## Trigger
 
-If the user asks to install and provides a URL for the cunica repository
-(`https://github.com/cherdynperm-tech/cunica`), execute the install flow end-to-end.
+- `установи https://github.com/cherdynperm-tech/cunica`
+- `установи unica` / `установи cunica` in a 1C workspace context
 
 ## Required execution flow
 
-1. Resolve local workspace path for cunica (current repo if already opened).
-2. If cunica repo already exists locally:
-   - fetch/pull latest changes for current branch.
-3. If repo does not exist:
-   - clone from the provided GitHub URL.
-4. Run installer:
-   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1`
-5. Run verification:
-   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1 -Verify`
-   - if verify fails with "Unica is not installed", report this explicitly and provide next action.
-6. Report outcome clearly:
-   - installed / updated / already installed / blocked.
+1. Run **one** PowerShell command (no git, no `git status`, no workspace glob scan):
+
+```powershell
+$installer = Join-Path $env:USERPROFILE '.cunica\installer\scripts\install-cunica.ps1'
+if (-not (Test-Path -LiteralPath $installer)) {
+  $zip = Join-Path $env:TEMP 'cunica-installer.zip'
+  $dest = Join-Path $env:USERPROFILE '.cunica\installer'
+  New-Item -ItemType Directory -Force -Path $dest | Out-Null
+  Invoke-WebRequest 'https://github.com/cherdynperm-tech/cunica/releases/latest/download/cunica-installer.zip' -OutFile $zip -UseBasicParsing
+  Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
+  Remove-Item -LiteralPath $zip -Force
+}
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -AgentInstall -Quiet -ProjectDir (Get-Location).Path
+```
+
+2. Parse machine-readable output from the script:
+   - `CUNICA_RESULT=installed|updated|already_installed|blocked`
+   - `CUNICA_PROJECT_INIT=done|needed|skipped|not_applicable`
+   - `CUNICA_LOG_PATH=...` (path to install session log in `~/.cunica/logs/`)
+3. Report outcome using `CUNICA_RESULT` (do not call extra `-Status` unless blocked).
+4. If `CUNICA_PROJECT_INIT=needed`, **ask the user** whether to initialize the current 1C project. On approval:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $env:USERPROFILE '.cunica\installer\scripts\cunica-init.ps1') -ProjectDir (Get-Location).Path
+```
+
+## Dev-mode exception
+
+If workspace root already contains both `scripts/install-cunica.ps1` and `unica-contract.json` (cunica development checkout), use local script:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1 -AgentInstall -Quiet -ProjectDir (Get-Location).Path
+```
+
+## PowerShell constraints
+
+- Do not use `&&` in PowerShell 5.1; use `;` or a single script block.
+- Do not run `git clone`, `git pull`, or inspect `git remote` for install flow.
 
 ## Safety and fallback
 
 - Do not run destructive git or filesystem commands.
 - If release download is blocked, suggest fallback:
-  - manual archive download
-  - `install-cunica.ps1 -ArchivePath C:\path\to\unica-codex-marketplace-win-x64.zip`
+  - manual archive download for Unica: `install-cunica.ps1 -ArchivePath C:\path\to\unica-codex-marketplace-win-x64.zip`
+  - manual installer zip: set `CUNICA_INSTALLER_ZIP_URL` or extract to `%USERPROFILE%\.cunica\installer`
 - Do not modify user project files outside explicit install/init scope.

@@ -59,20 +59,36 @@ powershell -ExecutionPolicy Bypass -File .\install-cunica.ps1
 
 ## Установка через чат Cursor
 
-Если в чате Cursor написать команду вида:
+Команда в чате:
 
 ```text
 установи https://github.com/cherdynperm-tech/cunica
 ```
 
-агент должен автоматически выполнить сценарий:
+означает **установку Unica для работы с 1С в Cursor**, а не клонирование репозитория cunica в workspace.
 
-1. Клонировать или обновить локальный репозиторий `cunica`.
-2. Запустить установку:
-   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1`
-3. Выполнить проверку:
-   - `powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1 -Verify`
-4. Сообщить итог: installed / updated / already installed / blocked.
+Агент выполняет **один** вызов (без git):
+
+```powershell
+$installer = Join-Path $env:USERPROFILE '.cunica\installer\scripts\install-cunica.ps1'
+if (-not (Test-Path -LiteralPath $installer)) {
+  $zip = Join-Path $env:TEMP 'cunica-installer.zip'
+  $dest = Join-Path $env:USERPROFILE '.cunica\installer'
+  New-Item -ItemType Directory -Force -Path $dest | Out-Null
+  Invoke-WebRequest 'https://github.com/cherdynperm-tech/cunica/releases/latest/download/cunica-installer.zip' -OutFile $zip -UseBasicParsing
+  Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
+  Remove-Item -LiteralPath $zip -Force
+}
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer -AgentInstall -Quiet -ProjectDir (Get-Location).Path
+```
+
+Скрипт печатает машиночитаемый итог: `CUNICA_RESULT=...`, `CUNICA_PROJECT_INIT=...`, `CUNICA_LOG_PATH=...`.
+
+Лог установки сохраняется в `~/.cunica/logs/install-*.log` (отключить: `-NoInstallLog` или `CUNICA_INSTALL_LOG=0`).
+
+Если `CUNICA_PROJECT_INIT=needed` (обнаружен 1С-проект), агент **спрашивает** пользователя и при согласии запускает `cunica-init.ps1`.
+
+Исключение для разработки cunica: если workspace уже содержит `scripts/install-cunica.ps1` и `unica-contract.json`, используйте локальный скрипт с `-AgentInstall`.
 
 Если GitHub release недоступен из сети, используйте fallback:
 
@@ -85,7 +101,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1 -ArchivePa
 После глобальной установки, из корня вашего 1С-репозитория:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\path\to\cunica\scripts\cunica-init.ps1
+powershell -ExecutionPolicy Bypass -File $env:USERPROFILE\.cunica\installer\scripts\cunica-init.ps1
 ```
 
 Создаётся:
@@ -106,6 +122,9 @@ powershell -ExecutionPolicy Bypass -File C:\path\to\cunica\scripts\cunica-init.p
 | `install-cunica.ps1 -AgentUpdate` | Алиас для агентов Cursor: выполнить обновление Unica |
 | `install-cunica.ps1 -Verify` | Проверить соответствие установленной Unica контракту cunica |
 | `install-cunica.ps1 -Verify -StrictVersion` | Ошибка при несовпадении версии разработки и установленной версии |
+| `install-cunica.ps1 -AgentInstall` | Алиас для агентов Cursor: установка/обновление Unica + verify + `CUNICA_RESULT=` |
+| `install-cunica.ps1 -AgentInstall -Quiet` | То же, без verbose progress загрузки |
+| `install-cunica.ps1 -NoInstallLog` | Установка без записи лога в `~/.cunica/logs/` |
 | `install-cunica.ps1 -AgentCheck` | Алиас для агентов Cursor: строгая проверка версии/контракта перед планированием |
 | `install-cunica.ps1 -Status` | Показать версию и доступность обновления |
 | `install-cunica.ps1 -Uninstall` | Удалить локальную установку |
@@ -123,7 +142,9 @@ powershell -ExecutionPolicy Bypass -File C:\path\to\cunica\scripts\cunica-init.p
 |------|------------|
 | `~/.cunica/releases/{version}/` | Распакованный пакет Unica |
 | `~/.cunica/current` | Ссылка на активную версию |
-| `~/.cunica/manifest.json` | Версия, платформа, дата установки |
+| `~/.cunica/installer/` | Кэш installer bundle (`cunica-installer.zip`) |
+| `~/.cunica/logs/` | Логи сессий установки (`install-*.log`) |
+| `~/.cunica/manifest.json` | Версия, платформа, дата установки, `installerPath`, `lastInstallLogPath` |
 | `~/.cursor/mcp.json` | MCP-конфиг (добавляется сервер `unica`) |
 | `~/.cursor/skills/unica-*` | Ссылки на skills Unica |
 
