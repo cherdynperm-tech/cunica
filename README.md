@@ -51,6 +51,8 @@ iwr https://github.com/cherdynperm-tech/cunica/releases/latest/download/install-
 powershell -ExecutionPolicy Bypass -File .\install-cunica.ps1
 ```
 
+Релизы `cunica` формируются автоматически при пуше тега формата `v*`.
+
 ## Установка через чат Cursor
 
 Если в чате Cursor написать команду вида:

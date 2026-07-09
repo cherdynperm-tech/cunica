@@ -35,6 +35,22 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-cunica.ps1
 - Алиас для агентов:
   - `install-cunica.ps1 -AgentUpdate`
 
+## Публикация релиза GitHub
+
+- Релиз `cunica` формируется автоматически GitHub Actions workflow
+  `.github/workflows/release.yml` при пуше тега формата `v*`.
+- В релиз публикуется asset `install-cunica.ps1` (берется из `scripts/install-cunica.ps1`).
+
+Проверка публикации:
+
+```powershell
+git tag v0.0.0-test
+git push origin v0.0.0-test
+```
+
+- Убедиться, что в GitHub появился Release для тега `v0.0.0-test`.
+- Убедиться, что среди assets есть `install-cunica.ps1`.
+
 ## Проверки и диагностика
 
 - Статус:
