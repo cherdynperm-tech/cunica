@@ -1,0 +1,22 @@
+---
+description: Require Unica version check at planning start for 1C projects.
+globs:
+  - "**/*.bsl"
+  - "**/Configuration.xml"
+  - "**/v8project.yaml"
+  - "**/src/**"
+alwaysApply: true
+---
+
+# Unica Version Check (Planning Gate)
+
+For 1C project planning sessions:
+
+- Before producing a plan, run:
+  - `powershell -ExecutionPolicy Bypass -File <path-to-cunica>/scripts/install-cunica.ps1 -Verify -StrictVersion`
+- If strict verification fails, stop planning and ask the user to run:
+  - `powershell -ExecutionPolicy Bypass -File <path-to-cunica>/scripts/install-cunica.ps1 -Update`
+  - or install the required version explicitly.
+- If verification shows warning (without strict mode), include the warning in the plan assumptions.
+
+Do not continue with 1C implementation planning when required Unica files are missing or version mismatch is strict-fail.

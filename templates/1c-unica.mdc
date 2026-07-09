@@ -1,0 +1,43 @@
+---
+description: Use Unica MCP and skills for 1C:Enterprise development tasks in this project.
+globs:
+  - "**/*.bsl"
+  - "**/Configuration.xml"
+  - "**/v8project.yaml"
+  - "**/src/**"
+alwaysApply: false
+---
+
+# 1C development with Unica (Cunica)
+
+This project uses [Unica](https://github.com/IngvarConsulting/unica) via [Cunica](https://github.com/cherdynperm-tech/cunica) for 1C:Enterprise workflows in Cursor.
+
+## MCP
+
+- Use MCP server `unica` for all 1C tooling operations.
+- Call public `unica.*` tools only. Do not invoke bundled binaries (`v8-runner`, `bsl-analyzer`, etc.) directly from shell.
+- For mutating operations, use `dryRun: true` unless the user explicitly requested execution.
+
+## Skills
+
+Prefer skills with prefix `unica-` for 1C tasks, for example:
+
+- `unica-v8-runner` — databases, build/dump, EPF/ERF, tests
+- `unica-meta-compile`, `unica-meta-edit`, `unica-meta-info` — metadata
+- `unica-form-*` — forms
+- `unica-code-search`, `unica-code-diagnostics` — BSL code
+
+## Project config
+
+- Read `v8project.yaml` in the workspace root when present.
+- Local overrides may live in `v8project.local.yaml` (not committed; may contain credentials).
+- XML source layout is typically under `src/` with `Configuration.xml`.
+- At planning start for 1C tasks, verify Unica contract/version with:
+  - `powershell -ExecutionPolicy Bypass -File <path-to-cunica>/scripts/install-cunica.ps1 -Verify`
+- If update is needed, ask user and use:
+  - `powershell -ExecutionPolicy Bypass -File <path-to-cunica>/scripts/install-cunica.ps1 -Update`
+
+## Safety
+
+- Do not modify license/HASP/registry for 1C license issues — stop and ask the user.
+- Do not commit passwords or connection strings to git.
